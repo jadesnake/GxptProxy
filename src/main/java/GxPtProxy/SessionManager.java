@@ -37,4 +37,10 @@ public class SessionManager {
         httpSession.setAttribute("_TOKEN",user.getToken());
         httpSession.setAttribute("_HOST",user.getHost());
     }
+    public static  void removeSession(User user,HttpServletRequest request){
+        HttpSession httpSession = request.getSession();
+        Object object = httpSession.getAttribute(LOGIN_USER_KEY);
+        if(object!=null)
+            clearSession(request);
+    }
 }

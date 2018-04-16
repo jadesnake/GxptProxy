@@ -1,17 +1,14 @@
 package GxPtProxy;
 
-import GxPtProxy.Bean.DkTj;
-import GxPtProxy.Bean.Invoice;
-import GxPtProxy.Bean.MainCollect;
+import Base.HttpUtils;
+import GxPtProxy.Bean.*;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.google.common.base.Splitter;
-import com.google.common.base.Strings;
+import io.netty.handler.codec.http.HttpUtil;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -58,23 +55,24 @@ public class Parser {
             List<String> element = Splitter.on('=').splitToList(one);
             if(element.isEmpty())   break;
             DkTj dktj = new DkTj();
-            DkTj.Group gxGroup = new DkTj.Group();
-            DkTj.Group smGroup = new DkTj.Group();
-            DkTj.Group hjGroup = new DkTj.Group();
+
+            Statistics gxGroup = new Statistics();
+            Statistics smGroup = new Statistics();
+            Statistics hjGroup = new Statistics();
             if(element.get(0).equals("01")){
-                dktj.setLabel("增值税专用发票");
+                dktj.setLabel(Statistics._FP_ZZZY);
             }
             else if(element.get(0).equals("02")){
-                dktj.setLabel("货物运输业增值税专用发票");
+                dktj.setLabel(Statistics._FP_HYZY);
             }
             else if(element.get(0).equals("03")){
-                dktj.setLabel("机动车销售统一发票");
+                dktj.setLabel(Statistics._FP_JCZY);
             }
             else if(element.get(0).equals("14")){
-                dktj.setLabel("通行费发票");
+                dktj.setLabel(Statistics._FP_TXZY);
             }
             else if(element.get(0).equals("99")){
-                dktj.setLabel("通行费发票");
+                dktj.setLabel(Statistics._FP_HJ);
             }
             if(!dktj.getLabel().isEmpty()){
                 gxGroup.label = "勾选认证";
@@ -162,6 +160,178 @@ public class Parser {
             ret.add(invoice);
         }
         return ret;
+    }
+    /* 数据解析规则
+	function changeLslb() {
+	var e = $("#lsqslb").val().split("~"),
+	t = e[2].split("*");
+	本次为所属期-------begin
+	共勾选发票
+	$("#bcqrfpsl").text(t[0])
+	有效勾选发票
+	$("#bcyxgxsl").text(t[1])
+	勾选且扫描认证发票
+	$("#bcqrgxqrz").text(t[2])
+	勾选不可抵扣发票
+	$("#bcqrgxbkdk").text(t[3])
+	增值税专用发票 数量 金额 税额
+	$("#zpbcsl").text(t[4])	$("#zpbcje").text(t[5])	$("#zpbcse").text(t[6])
+	机动车发票 数量 金额 税额
+	$("#jdcbcsl").text(t[7]) $("#jdcbcje").text(t[8]) $("#jdcbcse").text(t[9])
+	货运发票 数量 金额 税额
+	$("#hybcsl").text(t[10]) $("#hybcje").text(t[11]) $("#hybcse").text(t[12])
+	通行费发票 数量 金额 税额
+	$("#txfbcsl").text(t[33]) $("#txfbcje").text(t[34]) $("#txfbcse").text(t[35])
+	合计 数量 金额 税额
+	$("#hjbcsl").text(t[13]), $("#hjbcje").text(t[14]), $("#hjbcse").text(t[15]);
+	//截止本次勾选确认，共确认5 次，累计勾选34张发票，其中：
+	var s = token.split("~");
+	if("0" == s[0] || "5" == s[0] || "6" == s[0]){
+		截止本次勾选确认，有效勾选发票
+		$("#ljqryxgxsl").text(t[36])
+	}
+	else	{
+		截止本次勾选确认，有效勾选发票
+		$("#ljqryxgxsl").text(t[17])
+
+		$("#ljqrfpsl").text(t[16])
+		$("#ljqrgxqrz").text(t[18])
+		$("#ljqrgxbkdk").text(t[19])
+		累计有效勾选统计
+		增值税专用发票 数量 金额 税额
+		$("#zpljsl").text(t[20]) $("#zpljje").text(t[21]), $("#zpljse").text(t[22])
+		机动车发票 数量 金额 税额
+		$("#jdljcsl").text(t[23]) $("#jdljcje").text(t[24]) $("#jdljcse").text(t[25])
+		货运发票 数量 金额 税额
+		$("#hyljsl").text(t[26]) $("#hyljje").text(t[27]) $("#hyljse").text(t[28])
+		合计 数量 金额 税额
+		$("#hjljsl").text(t[29]) $("#hjljje").text(t[30]) $("#hjljse").text(t[31])
+
+		"1" == t[32] ? $("#tjzt").html("当前状态：已完成") : $("#tjzt").html("当前状态：已提交")
+
+		通行费发票 数量 金额 税额
+		$("#txfljsl").text(t[36]) $("#txfljje").text(t[37]) $("#txfljse").text(t[38]);
+	}
+	}
+	*/
+    public static List<QrHz> fromQrHz(String key2){
+        List<QrHz> ret = new ArrayList<>();
+        if(key2.isEmpty())
+            return ret;
+        List<String> out1 = Splitter.on('=').splitToList(key2);
+        for(String one : out1){
+            QrHz qrHz = new QrHz();
+            List<String> vals = Splitter.on('~').splitToList(one);
+            qrHz.setQrcs(vals.get(1));
+            qrHz.setQrtm(vals.get(0));
+            List<String> perVal = Splitter.on('*').splitToList(vals.get(2));
+            Statistics zpbc=null,jdcbc=null,hybc=null,txfbc=null,hjbc=null;
+            if( perVal.size()>=35 ) {
+                txfbc = new Statistics();
+                txfbc.setSl(perVal.get(33));
+                txfbc.setJe(perVal.get(34));
+                txfbc.setSe(perVal.get(35));
+                txfbc.enableLabel(false);
+                qrHz.addCurGxTj(Statistics._FP_TXZY,txfbc);
+            }
+            if( perVal.size()>15 ){
+                zpbc = new Statistics();
+                zpbc.setSl(perVal.get(4));
+                zpbc.setJe(perVal.get(5));
+                zpbc.setSe(perVal.get(6));
+                zpbc.enableLabel(false);
+                qrHz.addCurGxTj(Statistics._FP_ZZZY,zpbc);
+
+                jdcbc = new Statistics();
+                jdcbc.setSl(perVal.get(7));
+                jdcbc.setJe(perVal.get(8));
+                jdcbc.setSe(perVal.get(9));
+                jdcbc.enableLabel(false);
+                qrHz.addCurGxTj(Statistics._FP_JCZY,jdcbc);
+
+                hybc = new Statistics();
+                hybc.setSl(perVal.get(10));
+                hybc.setJe(perVal.get(11));
+                hybc.setSe(perVal.get(12));
+                hybc.enableLabel(false);
+                qrHz.addCurGxTj(Statistics._FP_HYZY,hybc);
+
+                hjbc = new Statistics();
+                hjbc.setSl(perVal.get(13));
+                hjbc.setJe(perVal.get(14));
+                hjbc.setSe(perVal.get(15));
+                hjbc.enableLabel(false);
+                qrHz.addCurGxTj(Statistics._FP_HJ,hjbc);
+            }
+            if( perVal.size()>=20 && perVal.size()<=40 ){
+                zpbc = new Statistics();
+                zpbc.setSl(perVal.get(20));
+                zpbc.setJe(perVal.get(21));
+                zpbc.setSe(perVal.get(22));
+                zpbc.enableLabel(false);
+                qrHz.addCountGxTj(Statistics._FP_ZZZY,zpbc);
+
+                jdcbc = new Statistics();
+                jdcbc.setSl(perVal.get(23));
+                jdcbc.setJe(perVal.get(24));
+                jdcbc.setSe(perVal.get(25));
+                jdcbc.enableLabel(false);
+                qrHz.addCountGxTj(Statistics._FP_JCZY,jdcbc);
+
+                hybc = new Statistics();
+                hybc.setSl(perVal.get(26));
+                hybc.setJe(perVal.get(27));
+                hybc.setSe(perVal.get(28));
+                hybc.enableLabel(false);
+                qrHz.addCountGxTj(Statistics._FP_HYZY,hybc);
+
+                hjbc = new Statistics();
+                hjbc.setSl(perVal.get(29));
+                hjbc.setJe(perVal.get(30));
+                hjbc.setSe(perVal.get(31));
+                hjbc.enableLabel(false);
+                qrHz.addCountGxTj(Statistics._FP_HJ,hjbc);
+
+                txfbc = new Statistics();
+                txfbc.setSl(perVal.get(36));
+                txfbc.setJe(perVal.get(37));
+                txfbc.setSe(perVal.get(38));
+                txfbc.enableLabel(false);
+                qrHz.addCountGxTj(Statistics._FP_TXZY,txfbc);
+            }
+            ret.add(qrHz);
+        }
+        return  ret;
+    }
+    public static UserInfo fromQueryQy(String key2,String token){
+        UserInfo userInfo = new UserInfo();
+        if(key2.isEmpty())
+            return userInfo;
+        List<String> vals = Splitter.on('=').splitToList(key2);
+        userInfo.setQymc( HttpUtils.decode(vals.get(0),"UTF-8") );
+        if(vals.get(1).equals("0")){
+            userInfo.setSbzq("月");
+        }
+        else{
+            userInfo.setSbzq("季");
+        }
+        List<String> tkVals = Splitter.on('~').splitToList(token);
+        if(tkVals.get(1).equals("1")){
+            userInfo.setQylx("生产企业");
+        }
+        else if(tkVals.get(1).equals("2")){
+            userInfo.setQylx("外贸企业");
+        }
+        else if(tkVals.get(1).equals("3")){
+            userInfo.setQylx("外综服企业");
+        }
+        else{
+            userInfo.setQylx("-");
+        }
+        userInfo.setOldsh( vals.get(7) );
+        userInfo.setLevel( vals.get(8) );
+        userInfo.setQysh( vals.get(10) );
+        return userInfo;
     }
     public static String ConvertStateCode(String code){
         String ret = "";

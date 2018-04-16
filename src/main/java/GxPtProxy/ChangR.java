@@ -2,16 +2,20 @@ package GxPtProxy;
 
 import Base.HttpUtils;
 import GxPtProxy.Bean.Query;
+import GxPtProxy.Bean.Request.Gx;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONException;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.io.JsonEOFException;
+import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import io.netty.handler.codec.json.JsonObjectDecoder;
 import org.omg.CORBA.Request;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.net.URLDecoder;
 import java.util.HashMap;
@@ -23,16 +27,22 @@ public class ChangR {
     private static final String _SUCCESS = "SUCCESS";
     private static final String _EMPTY = "EMPTY";
     public enum RESULT{
-         SUCCESS,ERROR,NEXT_LOGIN;
+         SUCCESS,ERROR,NEXT_LOGIN,MAKE_SECRET;
+    }
+    public class Secret{
+        public String ts="";
+        public String page="";
     }
     public class Data{
         public String nsrmc="";
         public String dqrq="";
         public String packet="";
         public String random="";
-        public String ts="";
-        public String page="";
+        public String gxrqfw="";
+        public String cookssq="";
+        public String ljrzs="";
     }
+
     private String token="";
     private String lastMsg="";
     private String ymbb="";
@@ -40,6 +50,7 @@ public class ChangR {
     private String host="";
     private String taxNo="";
     private Data data = new Data();
+    private Secret secret = new Secret();
 
     private String GetTickCount(){
         String tick;
@@ -98,7 +109,17 @@ public class ChangR {
     private String Request(String url,Map params,int timeout){
         String response="";
         try{
-            response = Base.HttpUtils.post(url,params,CosplayIE(GetHost(url)),15000);
+            response = Base.HttpUtils.post(url,params,CosplayIE(GetHost(url)),timeout);
+        }
+        catch(Exception e) {
+            e.printStackTrace();
+        }
+        return response;
+    }
+    private String Request(String url,Map params,int timeout,String cookie){
+        String response="";
+        try{
+            response = Base.HttpUtils.post(url,params,CosplayIE(GetHost(url)),timeout,cookie);
         }
         catch(Exception e) {
             e.printStackTrace();
@@ -244,89 +265,220 @@ public class ChangR {
         lastMsg = CodeToError(key1);
         return RESULT.ERROR;
     }
-    public RESULT SecondLogin(String authCode,String random) {
-        String url = host;
-        url += "/SbsqWW/querymm.do?callback=jQuery";
-        url += GetTickCount();
-
-        Map<String,String> params = new HashMap<>();
-        params.put("cert",taxNo);
-        params.put("funType","01");
-        String response = Request(url,params,15000);
-        if(response==null||response.isEmpty()){
-            lastMsg = _EMPTY;
+    public RESULT SecondLogin(String authCode,String random,MakeSecret secret){
+        if(RESULT.SUCCESS!=querySecret("01")){
+            lastMsg = "请求加密参数失败";
             return RESULT.ERROR;
         }
-        RESULT ret = RESULT.ERROR;
-        rpJson = TakeJson(response);
-        JSONObject root = null;
-        String key1="";
-        try {
-            root = JSON.parseObject(rpJson);
-            data.page  = root.getString("page");
-            data.ts = root.getString("ts");
-            ret = RESULT.NEXT_LOGIN;
-            lastMsg = _SUCCESS;
+        if(secret==null){
+            lastMsg = "加密实现为空";
+            return  RESULT.ERROR;
         }
-        catch(JSONException e){
-            e.printStackTrace();
-            lastMsg = "SecondLogin json error";
-            return RESULT.ERROR;
-        }
-        return ret;
+        String publickey = secret.checkTaxno(taxNo,this.secret.ts,"",this.secret.page,random);
+        int n=0;
+        do{
+            RESULT result = retryLogin(authCode,random,publickey);
+            if(result==RESULT.SUCCESS){
+                return result;
+            }
+            if(lastMsg.equals("无此用户")) {
+                return  result;
+            }
+            n += 1;
+        }while (n<3);
+        return RESULT.ERROR;
     }
-    public RESULT ThirdLogin(String authCode,String random,String publickey){
+    public RESULT submitGx(Gx gx,MakeSecret secret){
         String url = host;
-        url += "/SbsqWW/login.do?callback=jQuery";
+        url += "/SbsqWW/gxtj.do?callback=jQuery";
         url += GetTickCount();
 
+        String key1="";
+        StringBuilder fpdms = new StringBuilder();
+        StringBuilder fphms = new StringBuilder();
+        StringBuilder kprqs = new StringBuilder();
+        StringBuilder zts = new StringBuilder();
+        for(Gx.Invoice one : gx.getParams() ){
+            if(one==null) continue;
+            fpdms.append(one.getDm());
+            fpdms.append('=');
+
+            fphms.append(one.getHm());
+            fphms.append('=');
+
+            kprqs.append(one.getKprq());
+            kprqs.append('=');
+
+            if(one.getZt().equals("yes"))
+                zts.append("1");
+            else
+                zts.append("0");
+            zts.append("=");
+        }
+        if(fpdms.length()!=0)
+            fpdms.deleteCharAt( fpdms.length()-1 );
+        if(fphms.length()!=0)
+            fphms.deleteCharAt( fphms.length()-1 );
+        if(kprqs.length()!=0)
+            kprqs.deleteCharAt( kprqs.length()-1 );
+        if(zts.length()!=0)
+            zts.deleteCharAt( zts.length()-1 );
+        if(fpdms.length()==0&&fphms.length()==0&&kprqs.length()==0&&zts.length()==0){
+            lastMsg = "参数错误";
+            return  RESULT.ERROR;
+        }
+        if(secret==null){
+            lastMsg = "参数错误";
+            return  RESULT.ERROR;
+        }
+        if(RESULT.SUCCESS!=querySecret("02")){
+            lastMsg = "请求加密参数异常";
+            return  RESULT.ERROR;
+        }
+        String pubkey = secret.checkInvConf(taxNo,token,this.secret.ts,"",this.secret.page);
+
         Map<String,String> params = new HashMap<>();
-        params.put("type","CLIENT-AUTH");
-        params.put("clientAuthCode",authCode);
-        params.put("serverRandom",random);
-        params.put("password","");
-        params.put("ts", data.ts);
-        params.put("publickey",publickey);
+        params.put("fpdm",fpdms.toString());
+        params.put("fphm",fphms.toString());
+        params.put("kprq",kprqs.toString());
+        params.put("zt",zts.toString());
         params.put("cert",taxNo);
+        params.put("token",token);
         params.put("ymbb",ymbb);
+        params.put("ts",this.secret.ts);
+        params.put("publickey",pubkey);
         String response = Request(url,params,15000);
-        if(response==null||response.isEmpty()){
+        if(response==null||response.isEmpty()) {
             lastMsg = _EMPTY;
             return RESULT.ERROR;
         }
         rpJson = TakeJson(response);
-        RESULT ret;
-        String key1="";
         try{
             JSONObject root = JSON.parseObject(rpJson);
             key1 = root.getString("key1");
-            if(key1.equals("00")){
-                ret = RESULT.ERROR;
-                lastMsg = "登录失败";
-                return ret;
-            }
-            if(key1.equals("03")){
-                lastMsg = _SUCCESS;
+            if(key1.equals("000"))
+            {
                 token = root.getString("key2");
-                data.nsrmc = HttpUtils.decode(root.getString("key3"),"UTF-8");
-                data.dqrq = root.getString("key4");
+                lastMsg = _SUCCESS;
                 return RESULT.SUCCESS;
-            }
-            if(key1.equals("02")){
-                lastMsg = "无此用户";
-                return RESULT.ERROR;
             }
         }
         catch(JSONException e){
             e.printStackTrace();
-            lastMsg = "ThirdLogin json error";
+            lastMsg = "submitGx json error";
+            return  RESULT.ERROR;
+        }
+        RESULT ret = RESULT.ERROR;
+        if(key1.equals("001")) {
+            lastMsg = "数据保存失败！";
+        }
+        else
+            lastMsg = CodeToError(key1);
+        return ret;
+    }
+    public RESULT startConfirmGx(String nsrmc){
+        if(this.data.cookssq.isEmpty() || this.data.gxrqfw.isEmpty()){
+            if(RESULT.SUCCESS!=beforeConfirmGx()){
+                return RESULT.ERROR;
+            }
+        }
+        if(this.data.ljrzs.isEmpty() || this.data.dqrq.isEmpty()){
+            if(RESULT.SUCCESS!=queryQrgx())
+                return RESULT.ERROR;
+        }
+        StringBuilder cookie = new StringBuilder();
+        cookie.append("dqrq=");
+        cookie.append(data.dqrq);
+        cookie.append(";");
+        cookie.append("nsrmc=");
+        cookie.append(HttpUtils.encode(nsrmc));
+        cookie.append(";");
+        cookie.append("skssq=");
+        cookie.append(this.data.cookssq);
+        cookie.append(";");
+        cookie.append("gxrqfw=");
+        cookie.append(this.data.gxrqfw);
+        cookie.append(";");
+        cookie.append("sxy=0002;");
+        cookie.append("token=");
+        cookie.append(HttpUtils.encode(token));
+
+        String url = host;
+        url += "/SbsqWW/qrgx.do?callback=jQuery";
+        url += GetTickCount();
+        Map<String,String> params = new HashMap<>();
+        params.put("id","querysbzt");
+        params.put("id","querysbzt");
+        params.put("key1",taxNo);
+        params.put("key2",token);
+        params.put("ymbb",ymbb);
+        String response = Request(url,params,15000,cookie.toString());
+        rpJson = TakeJson(response);
+        String key1="",key2="";
+        try{
+            JSONObject root = JSON.parseObject(rpJson);
+            key1 = root.getString("key1");
+            key2 = root.getString("key2");
+            if(key1.equals("01") && (key2.equals("3")||key2.equals("1")||key2.equals("4")) )
+            {
+                //second
+
+            }
+        }
+        catch(JSONException e){
+            lastMsg = "startConfirmGx json error";
+            return RESULT.ERROR;
+        }
+        if(key2.equals("0")) {
+            lastMsg = "申报状态出现异常，请稍后再试";
+        }
+        else if(key2.equals("2")){
+            lastMsg = "税款所属期的申报工作已完成，本批次发票请您在下期进行勾选认证操作";
+        }
+        else if(key2.equals("2")){
+            lastMsg = "税款所属期的申报工作已完成，本批次发票请您在下期进行勾选认证操作";
+        }
+        else{
+            lastMsg = CodeToError(key1);
+        }
+        return RESULT.ERROR;
+    }
+    public RESULT queryInfo(){
+        String url = host;
+        url += "/SbsqWW/nsrcx.do?callback=jQuery";
+        url += GetTickCount();
+
+        Map<String,String> params = new HashMap<>();
+        params.put("cert",taxNo);
+        params.put("token",token);
+        params.put("ymbb",ymbb);
+        String response = Request(url,params,15000);
+        if(response==null || response.isEmpty()){
+            lastMsg = _EMPTY;
+            return RESULT.ERROR;
+        }
+        rpJson = TakeJson(response);
+        String key1="";
+        try{
+           JSONObject root = JSON.parseObject(rpJson);
+           key1 = root.getString("key1");
+           if(key1.equals("01")) {
+               rpJson = root.getString("key2");
+               token = root.getString("key3");
+               lastMsg = _SUCCESS;
+               return RESULT.SUCCESS;
+           }
+        }
+        catch(JSONException e){
+            e.printStackTrace();
+            lastMsg = "queryInfo json error";
             return RESULT.ERROR;
         }
         lastMsg = CodeToError(key1);
-        ret = RESULT.ERROR;
+        RESULT ret = RESULT.ERROR;
         return ret;
     }
-    public RESULT Quit(){
+    public RESULT quit(){
         String url = host;
         url += "/SbsqWW/quit.do?callback=jQuery";
         url += GetTickCount();
@@ -596,6 +748,55 @@ public class ChangR {
         }
         return ret;
     }
+    public RESULT queryQrHz(String ssq){
+        String key1="";
+        String url = host;
+        url += "/SbsqWW/qrgx.do?callback=jQuery";
+        url += GetTickCount();
+
+        String cxSsq = ssq.replaceAll("-*","");
+        cxSsq = cxSsq.substring(0,6);
+
+        Map<String,String> params = new HashMap<>();
+        params.put("id","querylsqrxx");
+        params.put("ssq",cxSsq);
+        params.put("key1",taxNo);
+        params.put("key2",token);
+        params.put("ymbb",ymbb);
+        String response = Request(url,params,15000);
+        if(response==null||response.isEmpty()){
+            lastMsg = _EMPTY;
+            return RESULT.ERROR;
+        }
+        rpJson = TakeJson(response);
+        try{
+            JSONObject root = JSON.parseObject(rpJson);
+            key1 = root.getString("key1");
+            if(key1.equals("01")){
+                token = root.getString("key3");
+                rpJson = root.getString("key2");
+                int bgnPos = rpJson.indexOf('"');
+                int endPos = rpJson.lastIndexOf('"');
+                if(bgnPos!=-1 && endPos!=-1){
+                    rpJson = rpJson.substring(bgnPos+1,endPos-bgnPos-1);
+                }
+                lastMsg = _SUCCESS;
+                return RESULT.SUCCESS;
+            }
+        }
+        catch(JSONException e){
+            lastMsg = "queryQrHz json error";
+            return RESULT.ERROR;
+        }
+        if(key1.equals("00")){
+            lastMsg = "查询发票信息出现异常，请稍后再试！";
+        }
+        else{
+            lastMsg = CodeToError(key1);
+        }
+        RESULT ret = RESULT.ERROR;
+        return ret;
+    }
     public RESULT queryFromGx(Query.Fp query){
         String aoData = BuildPagerJson(query,14);
         String url = host;
@@ -655,6 +856,159 @@ public class ChangR {
         lastMsg = CodeToError(key1);
         return RESULT.ERROR;
     }
+    private RESULT queryQrgx(){
+        String url = host;
+        url += "/SbsqWW/qrgx.do?callback=jQuery";
+        url += GetTickCount();
+
+        Map<String,String> params = new HashMap<>();
+        params.put("id","queryqrxx");
+        params.put("key1",taxNo);
+        params.put("key2",token);
+        params.put("ymbb",ymbb);
+        String response = Request(url,params,15000);
+        if(response==null||response.isEmpty()){
+            lastMsg = _EMPTY;
+            return RESULT.ERROR;
+        }
+        rpJson = TakeJson(response);
+        String key1="";
+        try{
+            JSONObject root = JSON.parseObject(rpJson);
+            key1 = root.getString("key1");
+            if(key1.equals("01")){
+                data.ljrzs = root.getString("key2");
+                data.dqrq  = root.getString("key5");
+                token  = root.getString("key3");
+                return RESULT.SUCCESS;
+            }
+        }
+        catch(JSONException e){
+            lastMsg = "queryQrgx json error";
+            return RESULT.ERROR;
+        }
+        if(key1.equals("00")){
+            lastMsg = "查询您当前税款所属期的已确认信息出现异常，请稍后再试";
+        }
+        else{
+            lastMsg = CodeToError(key1);
+        }
+        return RESULT.ERROR;
+    }
+    private RESULT beforeConfirmGx(){
+        String url = host;
+        url += "/SbsqWW/hqssq.do?callback=jQuery";
+        url += GetTickCount();
+
+        Map<String,String> params = new HashMap<>();
+        params.put("cert",taxNo);
+        params.put("token",token);
+        params.put("ymbb",ymbb);
+        String response = Request(url,params,15000);
+        if(response==null||response.isEmpty()){
+            lastMsg = _EMPTY;
+            return  RESULT.ERROR;
+        }
+        rpJson = TakeJson(response);
+        String key1="";
+        try {
+            JSONObject root = JSON.parseObject(rpJson);
+            key1 = root.getString("key1");
+            if(key1.equals("01")){
+                this.data.cookssq = root.getString("key3");
+                this.data.gxrqfw = root.getString("key4");
+                token = root.getString("key2");
+                lastMsg = _SUCCESS;
+                return RESULT.SUCCESS;
+            }
+        }
+        catch(JSONException e){
+            lastMsg = "beforeConfirmGx json error";
+            return RESULT.ERROR;
+        }
+        RESULT ret = RESULT.ERROR;
+        lastMsg = CodeToError(key1);
+        return ret;
+    }
+    private RESULT retryLogin(String authCode,String random,String publickey){
+        String url = host;
+        url += "/SbsqWW/login.do?callback=jQuery";
+        url += GetTickCount();
+
+        Map<String,String> params = new HashMap<>();
+        params.put("type","CLIENT-AUTH");
+        params.put("clientAuthCode",authCode);
+        params.put("serverRandom",random);
+        params.put("password","");
+        params.put("ts", this.secret.ts);
+        params.put("publickey",publickey);
+        params.put("cert",taxNo);
+        params.put("ymbb",ymbb);
+
+        String response = Request(url,params,15000);
+        if(response==null||response.isEmpty()){
+            lastMsg = _EMPTY;
+            return RESULT.ERROR;
+        }
+        rpJson = TakeJson(response);
+        RESULT ret;
+        String key1="";
+        try{
+            JSONObject root = JSON.parseObject(rpJson);
+            key1 = root.getString("key1");
+            if(key1.equals("00")){
+                ret = RESULT.ERROR;
+                lastMsg = "登录失败";
+                return ret;
+            }
+            if(key1.equals("03")){
+                lastMsg = _SUCCESS;
+                token = root.getString("key2");
+                data.nsrmc = HttpUtils.decode(root.getString("key3"),"UTF-8");
+                data.dqrq = root.getString("key4");
+                return RESULT.SUCCESS;
+            }
+            if(key1.equals("02")){
+                lastMsg = "无此用户";
+                return RESULT.ERROR;
+            }
+        }
+        catch(JSONException e){
+            e.printStackTrace();
+            lastMsg = "ThirdLogin json error";
+            return RESULT.ERROR;
+        }
+        lastMsg = CodeToError(key1);
+        ret = RESULT.ERROR;
+        return ret;
+    }
+    private RESULT querySecret(String funType){
+        String url = host;
+        url += "/SbsqWW/querymm.do?callback=jQuery";
+        url += GetTickCount();
+
+        Map<String,String> params = new HashMap<>();
+        params.put("cert",taxNo);
+        params.put("funType",funType);
+        String response = Request(url,params,15000);
+        if(response==null||response.isEmpty()){
+            lastMsg = _EMPTY;
+            return RESULT.ERROR;
+        }
+        rpJson = TakeJson(response);
+        try {
+            JSONObject root = JSON.parseObject(rpJson);
+            secret.page  = root.getString("page");
+            secret.ts = root.getString("ts");
+            lastMsg = _SUCCESS;
+        }
+        catch(JSONException e){
+            e.printStackTrace();
+            lastMsg = "SecondLogin json error";
+            return RESULT.ERROR;
+        }
+        return RESULT.SUCCESS;
+    }
     boolean isOvertime(){
         return lastMsg.equals(_EMPTY);
     }
@@ -690,4 +1044,10 @@ public class ChangR {
     public String getRpJson(){
         return rpJson;
     }
+
+    public Secret getSecret() {
+        return secret;
+    }
+
 }
+

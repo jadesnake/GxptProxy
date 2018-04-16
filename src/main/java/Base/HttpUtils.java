@@ -48,7 +48,7 @@ public class HttpUtils {
      * @throws IOException
      */
     private static HttpURLConnection initHttp(String url, String method,
-                                              Map<String, String> headers) throws IOException {
+                                              Map<String, String> headers,String cookie) throws IOException {
         URL _url = new URL(url);
         HttpURLConnection http = (HttpURLConnection) _url.openConnection();
         // 连接超时
@@ -63,6 +63,9 @@ public class HttpUtils {
             for (Entry<String, String> entry : headers.entrySet()) {
                 http.setRequestProperty(entry.getKey(), entry.getValue());
             }
+        }
+        if(cookie!=null && !cookie.isEmpty()){
+            http.setRequestProperty("Cookie",cookie);
         }
         http.setDoOutput(true);
         http.setDoInput(true);
@@ -82,7 +85,7 @@ public class HttpUtils {
      * @throws KeyManagementException
      */
     private static HttpsURLConnection initHttps(String url, String method,
-                                                Map<String, String> headers) throws IOException,
+                                                Map<String, String> headers,String cookie) throws IOException,
                                                                              NoSuchAlgorithmException,
                                                                              NoSuchProviderException,
                                                                              KeyManagementException {
@@ -108,6 +111,9 @@ public class HttpUtils {
                 http.setRequestProperty(entry.getKey(), entry.getValue());
             }
         }
+        if(cookie!=null && !cookie.isEmpty()){
+            http.setRequestProperty("Cookie",cookie);
+        }
         http.setSSLSocketFactory(ssf);
         http.setDoOutput(true);
         http.setDoInput(true);
@@ -120,14 +126,14 @@ public class HttpUtils {
      * @description 功能描述: get 请求
      * @return 返回类型:
      */
-    public static String get(String url, Map<String, String> params, Map<String, String> headers) {
+    public static String get(String url, Map<String, String> params, Map<String, String> headers,String cookie) {
         StringBuffer bufferRes = null;
         try {
             HttpURLConnection http = null;
             if (isHttps(url)) {
-                http = initHttps(initParams(url, params), _GET, headers);
+                http = initHttps(initParams(url, params), _GET, headers,cookie);
             } else {
-                http = initHttp(initParams(url, params), _GET, headers);
+                http = initHttp(initParams(url, params), _GET, headers,cookie);
             }
             String charset = DEFAULT_CHARSET;
             Pattern pattern = Pattern.compile("charset=\\S*");
@@ -171,7 +177,7 @@ public class HttpUtils {
      * @throws UnsupportedEncodingException
      */
     public static String get(String url, Map<String, String> params) {
-        return get(url, params, null);
+        return get(url, params, null,null);
     }
 
     /**
@@ -179,14 +185,14 @@ public class HttpUtils {
      * @description 功能描述: POST 请求
      * @return 返回类型:
      */
-    public static String post(String url, String params, Map<String, String> headers,int timeout) {
+    public static String post(String url, String params, Map<String, String> headers,int timeout,String cookie) {
         StringBuffer bufferRes = null;
         try {
             HttpURLConnection http = null;
             if (isHttps(url)) {
-                http = initHttps(url, _POST, headers);
+                http = initHttps(url, _POST, headers,cookie);
             } else {
-                http = initHttp(url, _POST, headers);
+                http = initHttp(url, _POST, headers,cookie);
             }
             //
             http.setConnectTimeout(_CONNECT_TIMEOUT);
@@ -234,9 +240,13 @@ public class HttpUtils {
      */
     public static String post(String url,
                               Map<String, String> params,int timeout) throws UnsupportedEncodingException {
-        return post(url, map2Url(params), null,timeout);
+        return post(url, map2Url(params), null,timeout,null);
     }
 
+    public static String post(String url,
+                              Map<String, String> params,int timeout,String cookie) throws UnsupportedEncodingException {
+        return post(url, map2Url(params), null,timeout,cookie);
+    }
     /**
      * post map 请求,headers请求头
      * 
@@ -247,9 +257,13 @@ public class HttpUtils {
      */
     public static String post(String url, Map<String, String> params,
                               Map<String, String> headers,int timeout) throws UnsupportedEncodingException {
-        return post(url, map2Url(params), headers,timeout);
+        return post(url, map2Url(params), headers,timeout,null);
     }
 
+    public static String post(String url, Map<String, String> params,
+                              Map<String, String> headers,int timeout,String cookie) throws UnsupportedEncodingException {
+        return post(url, map2Url(params), headers,timeout,cookie);
+    }
     /**
      * 
      * @description 功能描述: 构造请求参数
@@ -273,6 +287,16 @@ public class HttpUtils {
         try{
             ret = URLDecoder.decode(val,enc);
         }catch(UnsupportedEncodingException e){
+        }
+        return ret;
+    }
+    public static String encode(String val){
+        String ret = val;
+        try{
+            ret = URLEncoder.encode(val,"UTF-8");
+        }
+        catch(UnsupportedEncodingException e){
+
         }
         return ret;
     }

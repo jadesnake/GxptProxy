@@ -58,4 +58,21 @@ public class JsEngine {
         }
         return ret;
     }
+    public String checkInvConf(String a,String b,String c,String d,String e){
+        String ret="";
+        Invocable invocable = (Invocable)nashorn;
+        Object result = null;
+        try{
+            Object scope  = nashorn.get("jQueryT");
+            result = invocable.invokeMethod(scope, "checkInvConf",a,b,c,d,e);
+            ret = (String) result;
+        }
+        catch(NoSuchMethodException mehtodE){
+            mehtodE.printStackTrace();
+        }
+        catch (ScriptException scpritE){
+            scpritE.printStackTrace();
+        }
+        return ret;
+    }
 }

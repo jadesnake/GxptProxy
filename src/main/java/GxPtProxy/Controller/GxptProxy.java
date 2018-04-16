@@ -1,22 +1,24 @@
 package GxPtProxy.Controller;
 
-import Base.Result;
 import Base.ResultFactory;
 import GxPtProxy.*;
 import GxPtProxy.Bean.*;
-import GxPtProxy.Validator.LoginValidator;
-import GxPtProxy.Validator.ParamValidator;
-import GxPtProxy.Validator.UsualValidator;
-import org.apache.catalina.Session;
-import org.apache.catalina.connector.RequestFacade;
+import GxPtProxy.Bean.Done.DkTjDone;
+import GxPtProxy.Bean.Done.LoginDone;
+import GxPtProxy.Bean.Done.QrHzDone;
+import GxPtProxy.Bean.Done.QueryFpDone;
+import GxPtProxy.Bean.Request.Gx;
+import GxPtProxy.Validator.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
 import java.lang.reflect.Field;
+import java.util.List;
 
 @RestController
 @RequestMapping(value="/Gxpt",produces="text/plain;charset=UTF-8")
@@ -43,9 +45,9 @@ public class GxptProxy {
         area  地区拼音
         hello 税控盘证书xxx
     */
-    @RequestMapping("/Login")
+    @RequestMapping("/Login.do")
     @ParamValidator(validatorClass = LoginValidator.class)
-    Object login(String taxNo,String area,String hello,HttpServletRequest httpServletRequest){
+    public Object login(String taxNo,String area,String hello,HttpServletRequest httpServletRequest){
         String host="";
         try{
             Field field = GxptArea.class.getDeclaredField(area);
@@ -60,7 +62,7 @@ public class GxptProxy {
         changr.setYmbb(ymbb);
         changr.setHost(host);
         if(!user.getTaxNo().isEmpty()) {
-            changr.Quit();  //先退出
+            changr.quit();  //先退出
         }
         ChangR.RESULT result = changr.Login(hello);
         if(result==ChangR.RESULT.ERROR) {
@@ -93,22 +95,18 @@ public class GxptProxy {
         random   首次登录的随机数
         taxNo    税号
     * */
-    @RequestMapping("/SecondLogin")
+    @RequestMapping("/SecondLogin.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    Object secondLogin(String authCode,String taxNo,String random,HttpServletRequest httpServletRequest) {
+    public Object secondLogin(String authCode,String taxNo,String random,HttpServletRequest httpServletRequest) {
         User user = SessionManager.getUser(httpServletRequest);
         ChangR changr = allocByUser(user);
         String publickey="";
-        ChangR.RESULT result = changr.SecondLogin(authCode,random);
-        if(ChangR.RESULT.NEXT_LOGIN==result){
-            publickey = jsEngine.checkTaxno(taxNo,changr.getData().ts,"",changr.getData().page,random);
-            int nLoop = 0;
-            do{
-                result = changr.ThirdLogin(authCode,random,publickey);
-                if(result==ChangR.RESULT.SUCCESS) break;
-                nLoop+=1;
-            }while(nLoop<3);
-        }
+        ChangR.RESULT result = changr.SecondLogin(authCode, random, new MakeSecret() {
+            @Override
+            public String checkTaxno(String a, String b, String c, String d, String e) {
+                return jsEngine.checkTaxno(a,b,c,d,e);
+            }
+        });
         if(result==ChangR.RESULT.SUCCESS) {
             //更新token等信息
             user.setTaxNo(taxNo);
@@ -128,9 +126,9 @@ public class GxptProxy {
     *   taxNo 税号
     *   year  查询的年份
     * */
-    @RequestMapping("/mainCollectByYear")
+    @RequestMapping("/mainCollectByYear.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    Object mainCollectByYear(String taxNo,String year,String token,HttpServletRequest request){
+    public Object mainCollectByYear(String taxNo,String year,String token,HttpServletRequest request){
         User user = SessionManager.getUser(request);
         user.setToken(token);
 
@@ -154,9 +152,9 @@ public class GxptProxy {
     *  ksrq 开始日期
     *  jsrq 结束日期
     * */
-    @RequestMapping("/queryFromGx")
+    @RequestMapping("/queryFromGx.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    Object queryFromGx(String taxNo,String token,String page,String max,String rz,String ksrq,String jsrq,HttpServletRequest request){
+    public Object queryFromGx(String taxNo,String token,String page,String max,String rz,String ksrq,String jsrq,HttpServletRequest request){
         User user = SessionManager.getUser(request);
         user.setToken(token);
 
@@ -178,9 +176,9 @@ public class GxptProxy {
     *  taxNo 税号
     *  date 年月日 201702
     * */
-    @RequestMapping("/queryDkTj")
+    @RequestMapping("/queryDkTj.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    Object queryDkTj(String taxNo,String token,String date,HttpServletRequest request){
+    public Object queryDkTj(String taxNo,String token,String date,HttpServletRequest request){
         User user = SessionManager.getUser(request);
         user.setToken(token);
 
@@ -193,7 +191,7 @@ public class GxptProxy {
         SessionManager.addSession(user,request);
         DkTjDone dkTjDone = new DkTjDone();
         dkTjDone.setToken(changr.getToken());
-        dkTjDone.setDkTjList( Parser.DkTj(changr.getRpJson()) );
+        dkTjDone.setTjList( Parser.DkTj(changr.getRpJson()) );
         return ResultFactory.Success(dkTjDone);
     }
 
@@ -203,9 +201,9 @@ public class GxptProxy {
     *  date 年月日 2017-02-01
     *  目前该接口数据没有使用
     * */
-    @RequestMapping("/queryFromQrgx")
+    @RequestMapping("/queryFromQrgx.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    Object queryFromQrgx(String taxNo,String token,String date,HttpServletRequest request){
+    public Object queryFromQrgx(String taxNo,String token,String date,HttpServletRequest request){
         User user = SessionManager.getUser(request);
         user.setToken(token);
 
@@ -224,9 +222,9 @@ public class GxptProxy {
     * gxrz  GX_N_QR 已勾选未认证 GX_QR 已勾选已认证
     *
     * */
-    @RequestMapping("/queryFromGxRz")
+    @RequestMapping("/queryFromGxRz.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    Object queryFromGxRz(String taxNo,String token,String gxrz,String page,String max,HttpServletRequest request){
+    public Object queryFromGxRz(String taxNo,String token,String gxrz,String page,String max,HttpServletRequest request){
         User user = SessionManager.getUser(request);
         user.setToken(token);
 
@@ -251,9 +249,9 @@ public class GxptProxy {
      * qrrzrq_q 确认认证日期起
      * qrrzrq_z 确认认证日期止
      * */
-    @RequestMapping("/queryDk")
-    @ParamValidator(validatorClass = UsualValidator.class)
-    Object queryDk(String taxNo,String token,String page,String max,String tjyf,String xfsbh,
+    @RequestMapping("/queryDk.do")
+    @ParamValidator(validatorClass = DkValidator.class)
+    public Object queryDk(String taxNo,String token,String page,String max,String tjyf,String xfsbh,
                    String qrrzrq_q,String qrrzrq_z, HttpServletRequest request){
         User user = SessionManager.getUser(request);
         user.setToken(token);
@@ -270,6 +268,121 @@ public class GxptProxy {
         queryFpDone.setToken(changr.getToken());
         queryFpDone.setInvoices( Parser.fromDk(changr.getRpJson()) );
         return ResultFactory.Success(queryFpDone);
+    }
+    /*
+    * 查询 确认发票汇总 数据
+    * 查询条件
+    * ssq 所属期
+    *
+    * */
+    @RequestMapping("/queryQrHz.do")
+    @ParamValidator(validatorClass = UsualValidator.class)
+    public Object queryQrHz(String taxNo,String token,String ssq,HttpServletRequest request){
+        User user = SessionManager.getUser(request);
+        user.setToken(token);
+
+        ChangR changr = allocByUser(user);
+        ChangR.RESULT result = changr.queryQrHz(ssq);
+        if(result==ChangR.RESULT.ERROR){
+            return ResultFactory.Failure("-1",changr.getLastMsg());
+        }
+        user.setToken( changr.getToken() );
+        SessionManager.addSession(user,request);
+
+        List<QrHz> qrHzsList = Parser.fromQrHz(changr.getRpJson());
+        QrHzDone done = new QrHzDone();
+        done.setQrHzList(qrHzsList);
+        done.setToken(changr.getToken());
+        return ResultFactory.Success(done);
+    }
+    /*
+     *   获取企业信息
+     *
+     *
+     */
+    @RequestMapping("/queryInfo.do")
+    @ParamValidator(validatorClass = UsualValidator.class)
+    public Object queryInfo(String taxNo,String token,HttpServletRequest request){
+        User user = SessionManager.getUser(request);
+        user.setToken(token);
+        ChangR changr = allocByUser(user);
+        ChangR.RESULT result = changr.queryInfo();
+        if(result==ChangR.RESULT.ERROR){
+            return ResultFactory.Failure("-1",changr.getLastMsg());
+        }
+        user.setToken( changr.getToken() );
+        SessionManager.addSession(user,request);
+
+        UserInfoDone done = new UserInfoDone();
+        done.setToken(changr.getToken());
+        done.setUserInfo(Parser.fromQueryQy(changr.getRpJson(),changr.getToken()));
+        return ResultFactory.Success(done);
+    }
+    /*
+     *  保存勾选状态
+     *
+     *
+     * */
+    @RequestMapping("/submitGx.do")
+    @ParamValidator(validatorClass = SubmitGxValidator.class)
+    public Object submitGx(@RequestBody Gx rqParam, HttpServletRequest request){
+        User user = SessionManager.getUser(request);
+        user.setToken(rqParam.getToken());
+
+        ChangR changr = allocByUser(user);
+        ChangR.RESULT result = changr.submitGx(rqParam, new MakeSecret() {
+            @Override
+            public String checkInvConf(String a, String b, String c, String d, String e) {
+                return jsEngine.checkInvConf(a,b,c,d,e);
+            }
+        });
+        if(result==ChangR.RESULT.ERROR){
+            return ResultFactory.Failure("-1",changr.getLastMsg());
+        }
+        user.setToken(changr.getToken());
+        SessionManager.addSession(user,request);
+        return  ResultFactory.Success();
+    }
+    /*
+    * 对已经保存勾选的数据预认证
+    * 查询条件
+    * taxNo 税号
+    * token 令牌
+    * nsrmc 纳税人名称
+    * */
+    @RequestMapping("/StartConfirmGx")
+    @ParamValidator(validatorClass = UsualValidator.class)
+    public Object confirmGx(String taxNo,String token,String nsrmc,HttpServletRequest request){
+        User user = SessionManager.getUser(request);
+        user.setToken(token);
+        ChangR changr = allocByUser(user);
+        ChangR.RESULT result = changr.startConfirmGx(nsrmc);
+        if(result==ChangR.RESULT.ERROR){
+            return ResultFactory.Failure("-1",changr.getLastMsg());
+        }
+        user.setToken( changr.getToken() );
+        SessionManager.addSession(user,request);
+
+        return ResultFactory.Success();
+    }
+    /*
+    *   退出系统
+    *   quit
+    *
+    * */
+    @RequestMapping("/quit.do")
+    @ParamValidator(validatorClass = UsualValidator.class)
+    public Object quit(String taxNo,HttpServletRequest request ){
+        User user = SessionManager.getUser(request);
+        ChangR changr = allocByUser(user);
+        ChangR.RESULT result = changr.quit();
+        if(result==ChangR.RESULT.ERROR){
+            return ResultFactory.Failure("-1",changr.getLastMsg());
+        }
+
+
+        SessionManager.removeSession(user,request);
+        return ResultFactory.Success();
     }
 
     protected ChangR allocByUser(User user){
