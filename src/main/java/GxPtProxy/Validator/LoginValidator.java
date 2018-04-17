@@ -1,10 +1,9 @@
 package GxPtProxy.Validator;
 
-import GxPtProxy.GxptArea;
+import GxPtProxy.Gxpt.GxptArea;
 import java.lang.reflect.Field;
-import com.google.common.base.Strings;
+
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
 @Component

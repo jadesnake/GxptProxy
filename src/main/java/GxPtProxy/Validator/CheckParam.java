@@ -1,10 +1,7 @@
 package GxPtProxy.Validator;
 
 import Base.SpringUtil;
-import GxPtProxy.GxptArea;
 import org.aspectj.lang.JoinPoint;
-import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
 import org.aspectj.lang.annotation.Pointcut;
@@ -12,7 +9,6 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.stereotype.Component;
 import Exception.*;
 
-import javax.swing.*;
 import java.lang.reflect.Method;
 
 @Component

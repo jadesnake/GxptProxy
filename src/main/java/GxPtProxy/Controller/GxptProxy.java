@@ -3,11 +3,11 @@ package GxPtProxy.Controller;
 import Base.ResultFactory;
 import GxPtProxy.*;
 import GxPtProxy.Bean.*;
-import GxPtProxy.Bean.Done.DkTjDone;
-import GxPtProxy.Bean.Done.LoginDone;
-import GxPtProxy.Bean.Done.QrHzDone;
-import GxPtProxy.Bean.Done.QueryFpDone;
+import GxPtProxy.Bean.Done.*;
 import GxPtProxy.Bean.Request.Gx;
+import GxPtProxy.Gxpt.ChangR;
+import GxPtProxy.Gxpt.GxptArea;
+import GxPtProxy.Gxpt.Parser;
 import GxPtProxy.Validator.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -350,9 +350,9 @@ public class GxptProxy {
     * token 令牌
     * nsrmc 纳税人名称
     * */
-    @RequestMapping("/StartConfirmGx")
+    @RequestMapping("/startConfirmGx.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    public Object confirmGx(String taxNo,String token,String nsrmc,HttpServletRequest request){
+    public Object startConfirmGx(String taxNo,String token,String nsrmc,HttpServletRequest request){
         User user = SessionManager.getUser(request);
         user.setToken(token);
         ChangR changr = allocByUser(user);
@@ -362,7 +362,37 @@ public class GxptProxy {
         }
         user.setToken( changr.getToken() );
         SessionManager.addSession(user,request);
-
+        RzHz cur=null,dq=null;
+        if(!Parser.startConfirm(changr.getRpJson(),cur,dq)){
+            return ResultFactory.Failure("-1","数据解析异常");
+        }
+        RzHzDone rzHzDone = new RzHzDone();
+        rzHzDone.setCur(cur);
+        rzHzDone.setDq(dq);
+        rzHzDone.setLjhzxxfs( changr.getData().ljhzxxfs );
+        rzHzDone.setSignature( changr.getData().signature );
+        rzHzDone.setToken(changr.getToken());
+        return ResultFactory.Success(rzHzDone);
+    }
+    /*
+     * 对已经保存勾选的数据认证
+     * 查询条件
+     * taxNo 税号
+     * token 令牌
+     * nsrmc 纳税人名称
+     * */
+    @RequestMapping("/endConfirmGx.do")
+    @ParamValidator(validatorClass = UsualValidator.class)
+    public Object endConfirmGx(String taxNo,String token,String ljhzxxfs,String signature,HttpServletRequest request){
+        User user = SessionManager.getUser(request);
+        user.setToken(token);
+        ChangR changr = allocByUser(user);
+        ChangR.RESULT result = changr.endConfirmGx(ljhzxxfs,signature);
+        if(result==ChangR.RESULT.ERROR){
+            return ResultFactory.Failure("-1",changr.getLastMsg());
+        }
+        user.setToken( changr.getToken() );
+        SessionManager.addSession(user,request);
         return ResultFactory.Success();
     }
     /*
@@ -379,8 +409,6 @@ public class GxptProxy {
         if(result==ChangR.RESULT.ERROR){
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
-
-
         SessionManager.removeSession(user,request);
         return ResultFactory.Success();
     }
