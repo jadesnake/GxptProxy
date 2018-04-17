@@ -135,6 +135,11 @@ public class HttpUtils {
             } else {
                 http = initHttp(initParams(url, params), _GET, headers,cookie);
             }
+
+            logger.trace("output begin url");
+            logger.trace(initParams(url, params));
+            logger.trace("output end");
+
             String charset = DEFAULT_CHARSET;
             Pattern pattern = Pattern.compile("charset=\\S*");
             Matcher matcher = pattern.matcher(http.getContentType());
@@ -153,10 +158,17 @@ public class HttpUtils {
             if (http != null) {
                 http.disconnect();// 关闭连接
             }
+
+            logger.trace("input begin");
             logger.trace(bufferRes.toString());
+            logger.trace("input end");
+
             return bufferRes.toString();
         } catch (Exception e) {
             e.printStackTrace();
+            logger.trace("request error");
+            logger.trace(url);
+            logger.trace(e.getMessage());
             return null;
         }
     }
@@ -203,6 +215,11 @@ public class HttpUtils {
             out.flush();
             out.close();
 
+            logger.trace("output begin url");
+            logger.trace(url);
+            logger.trace(params);
+            logger.trace("output end");
+
             String charset = DEFAULT_CHARSET;
             Pattern pattern = Pattern.compile("charset=\\S*");
             Matcher matcher = pattern.matcher(http.getContentType());
@@ -222,10 +239,17 @@ public class HttpUtils {
             if (http != null) {
                 http.disconnect();// 关闭连接
             }
+
+            logger.trace("input begin");
             logger.trace(bufferRes.toString());
+            logger.trace("input end");
+
             return bufferRes.toString();
         } catch (Exception e) {
             e.printStackTrace();
+            logger.trace("request error");
+            logger.trace(url);
+            logger.trace(e.getMessage());
             return null;
         }
     }
@@ -339,9 +363,7 @@ public class HttpUtils {
 
     /**
      * https 域名校验
-     * 
-     * @param url
-     * @param params
+     *
      * @return
      */
     public class TrustAnyHostnameVerifier implements HostnameVerifier {
