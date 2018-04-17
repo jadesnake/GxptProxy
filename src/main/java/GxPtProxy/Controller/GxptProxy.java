@@ -9,6 +9,8 @@ import GxPtProxy.Gxpt.ChangR;
 import GxPtProxy.Gxpt.GxptArea;
 import GxPtProxy.Gxpt.Parser;
 import GxPtProxy.Validator.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 
@@ -23,6 +25,8 @@ import java.util.List;
 @RestController
 @RequestMapping(value="/Gxpt",produces="text/plain;charset=UTF-8")
 public class GxptProxy {
+    private static final Logger logger = LoggerFactory.getLogger(GxptProxy.class);
+
     @Autowired
     private GxptArea gxptArea;  //勾选平台地区
     @Autowired

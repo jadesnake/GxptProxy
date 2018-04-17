@@ -2,6 +2,7 @@ package GxPtProxy;
 
 import GxPtProxy.Gxpt.ChangR;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import javax.script.Invocable;
@@ -26,8 +27,11 @@ public class JsEngine {
     }
     public void init(){
         try {
-            File file = ResourceUtils.getFile("classpath:encrypt.js");
-            nashorn.eval( new FileReader(file) );
+            //这种方式存在问题见
+            //https://stackoverflow.com/questions/25869428/classpath-resource-not-found-when-running-as-jar
+            //File file = ResourceUtils.getFile("static/encrypt.js");
+            ClassPathResource crypt = new ClassPathResource("static/encrypt.js");
+            nashorn.eval( new InputStreamReader(crypt.getInputStream()) );
             //nashorn.eval(js);
             //直接读取数据出现js错误
         }
@@ -37,8 +41,8 @@ public class JsEngine {
             String eMsg = e.getMessage();
             e.printStackTrace();
         }
-        catch(FileNotFoundException fileE){
-            fileE.printStackTrace();;
+        catch(Exception e){
+            e.printStackTrace();
         }
     }
     public String checkTaxno(String a,String b,String c,String d,String e){
