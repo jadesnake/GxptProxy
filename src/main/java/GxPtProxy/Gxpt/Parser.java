@@ -8,6 +8,8 @@ import com.alibaba.fastjson.JSONException;
 import com.alibaba.fastjson.JSONObject;
 import com.google.common.base.Splitter;
 import io.netty.handler.codec.http.HttpUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -15,6 +17,7 @@ import java.util.List;
 
 @Component
 public class Parser {
+    static final Logger logger = LoggerFactory.getLogger(Parser.class);
     private static final String _YRZ   = "已认证" ;//已认证
     private static final String _CHOOSE_N = "no"  ; //未勾选
     private static final String _CHOOSE_Y = "yes" ; //已勾选
