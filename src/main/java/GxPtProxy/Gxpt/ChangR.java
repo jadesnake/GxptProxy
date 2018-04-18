@@ -297,8 +297,8 @@ public class ChangR {
             key2 = root.getString("key2");
             if(key1.equals("01") && (key2.equals("3")||key2.equals("1")||key2.equals("4")) )
             {   //second
-                JSONObject data = null;
-                if(RESULT.SUCCESS!=nextConfirm(data)){
+                JSONObject data = nextConfirm();
+                if(data==null){
                     return RESULT.ERROR;
                 }
                 data.put("qrljcs",this.data.ljrzs); //当前勾选次数
@@ -851,7 +851,7 @@ public class ChangR {
         lastMsg = GxptUtils.CodeToError(key1);
         return ret;
     }
-    private RESULT nextConfirm(JSONObject out){
+    private JSONObject nextConfirm(){
         String url = host;
         url += "/SbsqWW/qrgx.do?callback=jQuery";
         url += GxptUtils.GetTickCount();
@@ -864,7 +864,7 @@ public class ChangR {
         String response = GxptUtils.Request(url,params,15000);
         if(response==null||response.isEmpty()){
             lastMsg = _EMPTY;
-            return RESULT.ERROR;
+            return null;
         }
         rpJson = GxptUtils.TakeJson(response);
         String key1="";
@@ -877,21 +877,20 @@ public class ChangR {
                 key2 = root.getString("key2");
                 Integer key4 = Integer.valueOf(root.getString("key4"));
                 if(key4>0 && key2!=null &&!key2.isEmpty()){
-                    out = root;
                     List<String> vals = Splitter.on('*').splitToList(key2);
                     data.ljhzxxfs = vals.get(1);
                     data.signature= vals.get(2);
                 }
                 else{
                     lastMsg = "当前没有可以确认的数据";
-                    return RESULT.ERROR;
+                    return null;
                 }
-                return RESULT.SUCCESS;
+                return root;
             }
         }
         catch(JSONException e){
             lastMsg = "nextConfirm json error";
-            return RESULT.ERROR;
+            return null;
         }
         if(key1.equals("10") || key1.equals("20") || key1.equals("98") || key1.equals("99") || key1.equals("101") ){
             lastMsg = "查询您已勾选的发票信息出现异常，请稍后再试";
@@ -899,7 +898,7 @@ public class ChangR {
         else{
             lastMsg = GxptUtils.CodeToError(key1);
         }
-        return RESULT.ERROR;
+        return null;
     }
     private RESULT retryLogin(String authCode,String random,String publickey){
         String url = host;

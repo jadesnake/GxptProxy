@@ -63,7 +63,7 @@ public class Parser {
         }
         for(int n=0;n<key2.size();n++){
             List<String> a = Splitter.on('~').splitToList(key2.get(n));
-            if(a.size()==0) continue;
+            if(a.size()==0 || a.size()!=19) continue;
             RzHz out = (n==0?cur:dq);
             out.setBcqrfpsl( a.get(0) );
             out.setBcyxgxsl( a.get(1) );
