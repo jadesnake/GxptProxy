@@ -178,6 +178,26 @@ public class Parser {
         }
         return ret;
     }
+    public static List<Invoice> fromGxRz(String json){
+        List<Invoice> ret = new ArrayList<>();
+        JSONObject root = JSON.parseObject(json);
+        JSONArray data = root.getJSONArray("aaData");
+        for(Object one : data){
+            Invoice invoice = new Invoice();
+            JSONArray object = (JSONArray)one;
+            invoice.setCode( object.getString(1) );
+            invoice.setNumber( object.getString(2) );
+            invoice.setKprq( object.getString(3) );
+            invoice.setSalerMc( object.getString(4) );
+            invoice.setAmount( object.getString(5) );
+            invoice.setTaxAmount( object.getString(6) );
+            invoice.setChoose(_CHOOSE_Y);
+            invoice.setState(_YRZ);
+            invoice.setRzrq(  object.getString(8) );
+            ret.add(invoice);
+        }
+        return ret;
+    }
     public static List<Invoice> fromGx(String json){
         List<Invoice> ret = new ArrayList<>();
         JSONObject root = JSON.parseObject(json);
@@ -198,22 +218,26 @@ public class Parser {
             else  if(object.getString(8).equals("1")){
                 invoice.setChoose(_CHOOSE_Y);
             }
-            else  if(object.getString(12).equals("1")){
-                invoice.setChoose(_CHOOSE_S);
-            }
             invoice.setGxrq(object.getString(9));
             //10勾选认证 12扫描认证
-            if( object.getString(10).equals("1") || object.getString(12).equals("1") ){
+            if( object.getString(10).equals("1") ){
                 invoice.setState(_YRZ);
             }
             if(object.get(11)!=null){
                 invoice.setRzrq(  object.getString(11) );
             }
-            else if(object.get(13)!=null){
+            if( object.size()>=12 ) {
+                if( object.get(12)!=null && object.getString(12).equals("1")){
+                    invoice.setChoose(_CHOOSE_S);
+                    invoice.setState(_YRZ);
+                }
+            }
+            if( object.size()>=13 && object.get(13)!=null){
                 invoice.setRzrq(  object.getString(13) );
             }
-            if(object.get(14)!=null)
+            if( object.size()>=14 && object.get(14)!=null) {
                 invoice.setSalerNo( object.getString(14) );
+            }
             ret.add(invoice);
         }
         return ret;

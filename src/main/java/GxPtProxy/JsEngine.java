@@ -11,7 +11,6 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
 import org.slf4j.Logger;
-import org.springframework.util.ResourceUtils;
 
 import java.io.*;
 
@@ -30,7 +29,7 @@ public class JsEngine {
             //这种方式存在问题见
             //https://stackoverflow.com/questions/25869428/classpath-resource-not-found-when-running-as-jar
             //File file = ResourceUtils.getFile("static/encrypt.js");
-            ClassPathResource crypt = new ClassPathResource("static/encrypt.js");
+            ClassPathResource crypt = new ClassPathResource("encrypt.js");
             nashorn.eval( new InputStreamReader(crypt.getInputStream()) );
             //nashorn.eval(js);
             //直接读取数据出现js错误

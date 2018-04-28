@@ -37,12 +37,11 @@ public class GxptProxy {
     @Value("${gxpt.ymbb}")
     private String ymbb;
     /*
-    @RequestMapping("/Test")
+    @RequestMapping("/Test.do")
     Object test(){
         return ResultFactory.Failure("test","something");
     }
     */
-
     /*
         首次登录
         taxNo 税号
@@ -241,7 +240,7 @@ public class GxptProxy {
         SessionManager.addSession(user,request);
 
         QueryFpDone queryFpDone = new QueryFpDone();
-        queryFpDone.setInvoices( Parser.fromGx(changr.getRpJson()) );
+        queryFpDone.setInvoices( Parser.fromGxRz(changr.getRpJson()) );
         queryFpDone.setToken( changr.getToken() );
         return ResultFactory.Success(queryFpDone);
     }
