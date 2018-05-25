@@ -8,6 +8,7 @@ import GxPtProxy.Bean.Request.Gx;
 import GxPtProxy.Gxpt.ChangR;
 import GxPtProxy.Gxpt.GxptArea;
 import GxPtProxy.Gxpt.Parser;
+import GxPtProxy.Service.RedisService;
 import GxPtProxy.Validator.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,8 @@ public class GxptProxy {
     private StartOnLoad startOnLoad;
     @Autowired
     private JsEngine jsEngine;
+    @Autowired
+    private RedisService redisService;
 
     @Value("${gxpt.ymbb}")
     private String ymbb;
@@ -60,22 +63,29 @@ public class GxptProxy {
 
         }
         //如果已登录，先退出
-        User user = SessionManager.getUser(httpServletRequest);
+        User user = (User)redisService.get(taxNo);
         ChangR changr = new ChangR();
         changr.setYmbb(ymbb);
         changr.setHost(host);
-        if(!user.getTaxNo().isEmpty()) {
+        if(user!=null)
+        {
             changr.quit();  //先退出
+            redisService.delete(taxNo);
+        }
+        else
+        {
+            user = new User();
         }
         ChangR.RESULT result = changr.Login(hello);
         if(result==ChangR.RESULT.ERROR) {
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
-        //存储用户信息至session
         user.setHost(host);
         user.setTaxNo(taxNo);
         user.setToken(changr.getToken());
-        SessionManager.addSession(user,httpServletRequest);
+        //存储用户信息
+        user.setDqrq(changr.getData().dqrq);
+        redisService.set(taxNo,user);
         //返回首次登录数据
         Object respone;
         if(result==ChangR.RESULT.SUCCESS){
@@ -101,7 +111,10 @@ public class GxptProxy {
     @RequestMapping("/SecondLogin.do")
     @ParamValidator(validatorClass = UsualValidator.class)
     public Object secondLogin(String authCode,String taxNo,String random,HttpServletRequest httpServletRequest) {
-        User user = SessionManager.getUser(httpServletRequest);
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
         ChangR changr = allocByUser(user);
         String publickey="";
         ChangR.RESULT result = changr.SecondLogin(authCode, random, new MakeSecret() {
@@ -114,13 +127,18 @@ public class GxptProxy {
             //更新token等信息
             user.setTaxNo(taxNo);
             user.setToken(changr.getToken());
-            SessionManager.addSession(user,httpServletRequest);
+            user.setCookssq(changr.getData().cookssq);
+            redisService.set(taxNo,user);
+
             //构造返回结果
             LoginDone loginDone = new LoginDone();
             loginDone.setDqrq( changr.getData().dqrq );
             loginDone.setNsrmc( changr.getData().nsrmc );
             loginDone.setToken( changr.getToken() );
             return ResultFactory.Success(loginDone);
+        }
+        else {
+            redisService.delete(taxNo);
         }
         return ResultFactory.Failure("-1",changr.getLastMsg());
     }
@@ -131,10 +149,11 @@ public class GxptProxy {
     * */
     @RequestMapping("/mainCollectByYear.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    public Object mainCollectByYear(String taxNo,String year,String token,HttpServletRequest request){
-        User user = SessionManager.getUser(request);
-        user.setToken(token);
-
+    public Object mainCollectByYear(String taxNo,String year,HttpServletRequest request){
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.mainCollectByYear(year);
         if(result!=ChangR.RESULT.SUCCESS) {
@@ -144,6 +163,10 @@ public class GxptProxy {
         String rpJson = changr.getRpJson();
         MainCollect mainCollect = Parser.manCollect(rpJson);
         mainCollect.setToken(changr.getToken());
+
+        user.setToken(changr.getToken());
+        redisService.set(taxNo,user);
+
         return ResultFactory.Success( mainCollect );
     }
     /*
@@ -157,9 +180,11 @@ public class GxptProxy {
     * */
     @RequestMapping("/queryFromGx.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    public Object queryFromGx(String taxNo,String token,String page,String max,String rz,String ksrq,String jsrq,HttpServletRequest request){
-        User user = SessionManager.getUser(request);
-        user.setToken(token);
+    public Object queryFromGx(String taxNo,String page,String max,String rz,String ksrq,String jsrq,HttpServletRequest request){
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
 
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.queryFromGx( new Query.Fp(page,max,rz,ksrq,jsrq) );
@@ -167,7 +192,7 @@ public class GxptProxy {
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
         user.setToken( changr.getToken() );
-        SessionManager.addSession(user,request);
+        redisService.set(taxNo,user);
 
         QueryFpDone queryFpDone = new QueryFpDone();
         queryFpDone.setInvoices( Parser.fromGx(changr.getRpJson()) );
@@ -181,9 +206,11 @@ public class GxptProxy {
     * */
     @RequestMapping("/queryDkTj.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    public Object queryDkTj(String taxNo,String token,String date,HttpServletRequest request){
-        User user = SessionManager.getUser(request);
-        user.setToken(token);
+    public Object queryDkTj(String taxNo,String date,HttpServletRequest request){
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
 
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.queryDkTj(date);
@@ -191,7 +218,8 @@ public class GxptProxy {
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
         user.setToken(changr.getToken());
-        SessionManager.addSession(user,request);
+        redisService.set(taxNo,user);
+
         DkTjDone dkTjDone = new DkTjDone();
         dkTjDone.setToken(changr.getToken());
         dkTjDone.setTjList( Parser.DkTj(changr.getRpJson()) );
@@ -206,9 +234,11 @@ public class GxptProxy {
     * */
     @RequestMapping("/queryFromQrgx.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    public Object queryFromQrgx(String taxNo,String token,String date,HttpServletRequest request){
-        User user = SessionManager.getUser(request);
-        user.setToken(token);
+    public Object queryFromQrgx(String taxNo,String date,HttpServletRequest request){
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
 
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.queryFromQrgx(date);
@@ -216,7 +246,7 @@ public class GxptProxy {
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
         user.setToken(changr.getToken());
-        SessionManager.addSession(user,request);
+        redisService.set(taxNo,user);
         return ResultFactory.Success();
     }
     /*
@@ -227,9 +257,11 @@ public class GxptProxy {
     * */
     @RequestMapping("/queryFromGxRz.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    public Object queryFromGxRz(String taxNo,String token,String gxrz,String page,String max,HttpServletRequest request){
-        User user = SessionManager.getUser(request);
-        user.setToken(token);
+    public Object queryFromGxRz(String taxNo,String gxrz,String page,String max,HttpServletRequest request){
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
 
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.queryFromGxRz(new Query.GxRz(page,max,gxrz));
@@ -237,7 +269,7 @@ public class GxptProxy {
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
         user.setToken(changr.getToken());
-        SessionManager.addSession(user,request);
+        redisService.set(taxNo,user);
 
         QueryFpDone queryFpDone = new QueryFpDone();
         queryFpDone.setInvoices( Parser.fromGxRz(changr.getRpJson()) );
@@ -254,10 +286,12 @@ public class GxptProxy {
      * */
     @RequestMapping("/queryDk.do")
     @ParamValidator(validatorClass = DkValidator.class)
-    public Object queryDk(String taxNo,String token,String page,String max,String tjyf,String xfsbh,
+    public Object queryDk(String taxNo,String page,String max,String tjyf,String xfsbh,
                    String qrrzrq_q,String qrrzrq_z, HttpServletRequest request){
-        User user = SessionManager.getUser(request);
-        user.setToken(token);
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
 
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.queryDk(new Query.Dkcx(page,max,tjyf,xfsbh,qrrzrq_q,qrrzrq_z));
@@ -265,7 +299,7 @@ public class GxptProxy {
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
         user.setToken( changr.getToken() );
-        SessionManager.addSession(user,request);
+        redisService.set(taxNo,user);
 
         QueryFpDone queryFpDone = new QueryFpDone();
         queryFpDone.setToken(changr.getToken());
@@ -280,9 +314,11 @@ public class GxptProxy {
     * */
     @RequestMapping("/queryQrHz.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    public Object queryQrHz(String taxNo,String token,String ssq,HttpServletRequest request){
-        User user = SessionManager.getUser(request);
-        user.setToken(token);
+    public Object queryQrHz(String taxNo,String ssq,HttpServletRequest request){
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
 
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.queryQrHz(ssq);
@@ -290,7 +326,7 @@ public class GxptProxy {
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
         user.setToken( changr.getToken() );
-        SessionManager.addSession(user,request);
+        redisService.set(taxNo,user);
 
         List<QrHz> qrHzsList = Parser.fromQrHz(changr.getRpJson());
         QrHzDone done = new QrHzDone();
@@ -305,16 +341,19 @@ public class GxptProxy {
      */
     @RequestMapping("/queryInfo.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    public Object queryInfo(String taxNo,String token,HttpServletRequest request){
-        User user = SessionManager.getUser(request);
-        user.setToken(token);
+    public Object queryInfo(String taxNo,HttpServletRequest request){
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
+
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.queryInfo();
         if(result==ChangR.RESULT.ERROR){
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
         user.setToken( changr.getToken() );
-        SessionManager.addSession(user,request);
+        redisService.set(taxNo,user);
 
         UserInfoDone done = new UserInfoDone();
         done.setToken(changr.getToken());
@@ -329,8 +368,10 @@ public class GxptProxy {
     @RequestMapping("/submitGx.do")
     @ParamValidator(validatorClass = SubmitGxValidator.class)
     public Object submitGx(@RequestBody Gx rqParam, HttpServletRequest request){
-        User user = SessionManager.getUser(request);
-        user.setToken(rqParam.getToken());
+        User user = (User)redisService.get(rqParam.getTaxNo());
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
 
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.submitGx(rqParam, new MakeSecret() {
@@ -343,7 +384,7 @@ public class GxptProxy {
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
         user.setToken(changr.getToken());
-        SessionManager.addSession(user,request);
+        redisService.set(user.getTaxNo(),user);
         return  ResultFactory.Success();
     }
     /*
@@ -355,16 +396,20 @@ public class GxptProxy {
     * */
     @RequestMapping("/startConfirmGx.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    public Object startConfirmGx(String taxNo,String token,String nsrmc,HttpServletRequest request){
-        User user = SessionManager.getUser(request);
-        user.setToken(token);
+    public Object startConfirmGx(String taxNo,String nsrmc,HttpServletRequest request){
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
+
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.startConfirmGx(nsrmc);
         if(result==ChangR.RESULT.ERROR){
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
         user.setToken( changr.getToken() );
-        SessionManager.addSession(user,request);
+        redisService.set(user.getTaxNo(),user);
+
         RzHz cur=null,dq=null;
         if(!Parser.startConfirm(changr.getRpJson(),cur,dq)){
             return ResultFactory.Failure("-1","数据解析异常");
@@ -386,16 +431,19 @@ public class GxptProxy {
      * */
     @RequestMapping("/endConfirmGx.do")
     @ParamValidator(validatorClass = UsualValidator.class)
-    public Object endConfirmGx(String taxNo,String token,String ljhzxxfs,String signature,HttpServletRequest request){
-        User user = SessionManager.getUser(request);
-        user.setToken(token);
+    public Object endConfirmGx(String taxNo,String ljhzxxfs,String signature,HttpServletRequest request){
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
+
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.endConfirmGx(ljhzxxfs,signature);
         if(result==ChangR.RESULT.ERROR){
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
         user.setToken( changr.getToken() );
-        SessionManager.addSession(user,request);
+        redisService.set(user.getTaxNo(),user);
         return ResultFactory.Success();
     }
     /*
@@ -406,13 +454,17 @@ public class GxptProxy {
     @RequestMapping("/quit.do")
     @ParamValidator(validatorClass = UsualValidator.class)
     public Object quit(String taxNo,HttpServletRequest request ){
-        User user = SessionManager.getUser(request);
+        User user = (User)redisService.get(taxNo);
+        if(user==null){
+            return ResultFactory.Failure("-1","请先登录");
+        }
+
         ChangR changr = allocByUser(user);
         ChangR.RESULT result = changr.quit();
         if(result==ChangR.RESULT.ERROR){
             return ResultFactory.Failure("-1",changr.getLastMsg());
         }
-        SessionManager.removeSession(user,request);
+        redisService.delete(user.getTaxNo());
         return ResultFactory.Success();
     }
 

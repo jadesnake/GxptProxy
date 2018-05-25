@@ -25,10 +25,5 @@ public class SubmitGxValidator extends BaseValidator {
                 httpServletRequest = (HttpServletRequest)object;
             }
         }
-        if(httpServletRequest!=null){
-            User user = SessionManager.getUser(httpServletRequest);
-            if(user.getTaxNo().isEmpty())
-                super.setError("0003","请先登录");
-        }
     }
 }

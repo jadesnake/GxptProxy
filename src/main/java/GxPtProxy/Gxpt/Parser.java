@@ -193,7 +193,8 @@ public class Parser {
             invoice.setTaxAmount( object.getString(6) );
             invoice.setChoose(_CHOOSE_Y);
             invoice.setState(_YRZ);
-            invoice.setRzrq(  object.getString(8) );
+            invoice.setGxrq( object.getString(8)  );
+            invoice.setRzrq(  object.getString(10) );
             ret.add(invoice);
         }
         return ret;

@@ -7,6 +7,24 @@ public class User implements Serializable {
     private String taxNo="";
     private String token="";
     private String host="";
+    private String dqrq="";
+    private String cookssq="";
+
+    public String getCookssq() {
+        return cookssq;
+    }
+
+    public void setCookssq(String cookssq) {
+        this.cookssq = cookssq;
+    }
+
+    public String getDqrq() {
+        return dqrq;
+    }
+
+    public void setDqrq(String dqrq) {
+        this.dqrq = dqrq;
+    }
 
     public String getTaxNo() {
         return taxNo;
